@@ -8,7 +8,8 @@ Define_Module(SDHLTE);
  * Initializes the SDHLTE module and schedules the first STM frame transmission.
  */
 void SDHLTE::initialize() {
-    stmLevel = par("stmLevel");
+    loadSTMSignal = registerSignal("loadSTM");
+    stmLevel = par("stmLevel"); /**definimos el nivel de trama **/
     useProtection = par("useProtection");
     numTributaries = gateSize("pdhIn");
     protectionSwitchTime = par("protectionSwitchTime");
@@ -20,7 +21,7 @@ void SDHLTE::initialize() {
     workingSignalRx = registerSignal("stmWorkingReceived");
     protectionSignalRx = registerSignal("stmProtectionReceived");
 
-    double bitrate = 155.52e6 * stmLevel;  // STM-n velocidad
+    double bitrate = 155.52e6 * stmLevel;  // STM-n velocidad proporcional a la base
     for (int i = 0; i < gateSize("lineOut"); ++i) {
         if (gate("lineOut", i)->isConnected()) {
             cChannel *chan = gate("lineOut", i)->getChannel();
@@ -38,7 +39,8 @@ void SDHLTE::initialize() {
  * Handles incoming PDH, SDH, and self messages (for frame generation).
  */
 void SDHLTE::handleMessage(cMessage *msg) {
-    if (msg == frameTimer) {
+
+    if (msg == frameTimer) {/**lo que hace es ver si hay datos a la entrada **/
         std::cout << "SDHLTE::handleMessage = frameTimer" << endl;
 
         bool sendFrame = false;
@@ -53,7 +55,7 @@ void SDHLTE::handleMessage(cMessage *msg) {
             auto *frame = new SDHFrame("STM-Frame");
             frame->setStmLevel(stmLevel);
 
-            int maxBytes = 2430 * stmLevel;
+            int maxBytes = 2430 * stmLevel;/**multiplexa paquetes de todas las entradas PDH **/
             int usedBytes = 0;
 
             auto *vc = new SDHVirtualContainer("VC4");
@@ -79,6 +81,7 @@ void SDHLTE::handleMessage(cMessage *msg) {
                         tributaryBuffers[i].pop();
                     }
                 }
+
             }
 
             // Encapsular los paquetes en el array payloads[]
@@ -94,7 +97,8 @@ void SDHLTE::handleMessage(cMessage *msg) {
             delete vc;
 
             // Color según carga
-            double loadRatio = (double)usedBytes / maxBytes;
+            double loadRatio = (double)usedBytes ;
+            emit(loadSTMSignal,loadRatio );
 
             bool useProtectionNow = useProtection && (protectionSwitchTime >= 0 && simTime() >= protectionSwitchTime);
 
