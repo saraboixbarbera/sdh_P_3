@@ -10,7 +10,18 @@ void SDHADM::initialize() {
     stmLevel = par("stmLevel");
     allowMixedInsertion = par("allowMixedInsertion");
 
-    double bitrate = 155.52e6 * stmLevel;  // STM-n velocidad
+    // Registrar señales
+    pdhReceivedSignal = registerSignal("pdhReceived");
+    pdhTransmittedSignal = registerSignal("pdhTransmitted");
+    stmForwardedSignal = registerSignal("stmForwarded");
+
+    // Inicializar contadores
+    totalPDHReceived = 0;
+    totalPDHTransmitted = 0;
+    totalSTMForwarded = 0;
+
+    // Establecer bitrate en canales de salida
+    double bitrate = 155.52e6 * stmLevel;
     for (int i = 0; i < gateSize("lineOut"); ++i) {
         if (gate("lineOut", i)->isConnected()) {
             cChannel *chan = gate("lineOut", i)->getChannel();
@@ -19,7 +30,6 @@ void SDHADM::initialize() {
             }
         }
     }
-
 
     frameTimer = new cMessage("ADMFrameTimer");
     scheduleAt(simTime() + SimTime(125, SIMTIME_US), frameTimer);
@@ -83,6 +93,9 @@ void SDHADM::handleMessage(cMessage *msg) {
         if (index >= 0 && index < (int)tributaryBuffers.size()) {
             auto *pdhPacket = check_and_cast<cPacket*>(msg);
             tributaryBuffers[index].push(pdhPacket);
+
+            emit(pdhReceivedSignal, 1);
+            totalPDHReceived++;
         } else {
             delete msg;
         }
@@ -92,7 +105,6 @@ void SDHADM::handleMessage(cMessage *msg) {
         auto *frame = check_and_cast<SDHFrame*>(msg);
         std::vector<SDHVirtualContainer*> forwardVCs;
 
-        // 1. Extraer los VCs si el tributary está conectado a un PDH
         for (int i = 0; i < frame->getVcArrayArraySize(); ++i) {
             SDHVirtualContainer vcCopy = frame->getVcArray(i);
             auto *vc = vcCopy.dup();
@@ -106,9 +118,11 @@ void SDHADM::handleMessage(cMessage *msg) {
                     auto *pdh = vc->getPayloads(j).dup();
                     simtime_t delay = j * packetSpacing;
                     sendDelayed(pdh, delay, "pdhOut", t);
+                    emit(pdhTransmittedSignal, 1);
+                    totalPDHTransmitted++;
+
                     EV << "Sent PDH packet " << pdh->getName()
                        << " from VC[" << i << "] to pdhOut[" << t << "] at t+" << delay << endl;
-
                 }
                 delete vc;
             } else {
@@ -116,7 +130,6 @@ void SDHADM::handleMessage(cMessage *msg) {
             }
         }
 
-        // 2. (opcional) insertar datos locales
         if (allowMixedInsertion) {
             int maxBytes = 2430 * stmLevel;
             int usedBytes = 0;
@@ -152,7 +165,6 @@ void SDHADM::handleMessage(cMessage *msg) {
             }
         }
 
-        // 3. Reenviar si quedan VCs
         if (!forwardVCs.empty()) {
             auto *newFrame = new SDHFrame("Forwarded STM");
             newFrame->setStmLevel(frame->getStmLevel());
@@ -166,6 +178,8 @@ void SDHADM::handleMessage(cMessage *msg) {
             for (int i = 0; i < gateSize("lineOut"); ++i) {
                 if (gate("lineOut", i)->isConnected()) {
                     send(newFrame->dup(), "lineOut", i);
+                    emit(stmForwardedSignal, 1);
+                    totalSTMForwarded++;
                 }
             }
 
@@ -182,12 +196,17 @@ void SDHADM::handleMessage(cMessage *msg) {
 
 void SDHADM::finish() {
     cancelAndDelete(frameTimer);
+
     for (auto& queue : tributaryBuffers) {
         while (!queue.empty()) {
             delete queue.front();
             queue.pop();
         }
     }
+
+    recordScalar("Total PDH Received", totalPDHReceived);
+    recordScalar("Total PDH Transmitted", totalPDHTransmitted);
+    recordScalar("Total STM Forwarded", totalSTMForwarded);
 }
 
 } // namespace inet

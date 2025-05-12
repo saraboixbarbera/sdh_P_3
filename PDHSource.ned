@@ -2,7 +2,7 @@
 package inet.node.sdh;
 
 //
-// Simple PDH traffic generator.
+// Simple PDH traffic generator. hola
 //
 simple PDHSource
 {

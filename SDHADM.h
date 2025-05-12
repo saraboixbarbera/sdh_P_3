@@ -9,12 +9,24 @@ namespace inet {
 
 class SDHADM : public omnetpp::cSimpleModule
 {
-  protected:
-    int numTributaries = 0;  // Number of pdhIn/pdhOut tributaries
-    int stmLevel = 1;        // Level of STM (1, 4, 16...), used when regenerating frames
-    bool allowMixedInsertion = false; // Allows both inserting PDH data into STM frames and generating new STM frames
-    std::vector<std::queue<omnetpp::cPacket*>> tributaryBuffers;
-    cMessage *frameTimer = nullptr;
+
+protected:
+    int numTributaries;
+    int stmLevel;
+    bool allowMixedInsertion;
+    std::vector<std::queue<cPacket*>> tributaryBuffers;
+    cMessage *frameTimer;
+
+    // Señales
+    simsignal_t pdhReceivedSignal;
+    simsignal_t pdhTransmittedSignal;
+    simsignal_t stmForwardedSignal;
+
+    // Contadores
+    int totalPDHReceived;
+    int totalPDHTransmitted;
+    int totalSTMForwarded;
+
 
     virtual void initialize() override;
     virtual void handleMessage(omnetpp::cMessage *msg) override;

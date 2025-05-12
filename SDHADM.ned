@@ -13,6 +13,18 @@ simple SDHADM
         bool allowMixedInsertion = default(false);        
         @display("i=block/routing");
         @class(SDHADM);
+        
+        @signal[pdhReceived](type=int);
+        @signal[pdhTransmitted](type=int);
+        @signal[stmForwarded](type=int);
+
+        @statistic[pdhReceived](record=count);
+        @statistic[pdhTransmitted](record=count);
+        @statistic[stmForwarded](record=count);
+
+       
+        
+      
     gates:
         input pdhIn[numTributaries];
         output pdhOut[numTributaries];
